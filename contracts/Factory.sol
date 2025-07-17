@@ -81,7 +81,7 @@ contract Factory {
         // Calculate the price of 1 token based on total bought
         uint256  cost = getCost(sale.sold);
 
-        uint256 price = cost * (_amount / 10 ** 18);
+        uint256 price = (cost * _amount) / 1 ether; // Fix price precision;
 
         // make sure enough eth is sent
         require(msg.value >= price, "Factory: Not enough ETH receieved");
@@ -103,4 +103,31 @@ contract Factory {
         //emit an event
         emit Buy(_token, _amount);
     }
+
+    function deposit(address _token) external {
+        // the remaining token balance and ETH
+        //would go into a liquidity pool like Uniswap V3
+        //For simplicity we will just send it to the owner
+
+        Token token = Token(_token);
+        TokenSale memory sale = tokenToSale[_token];
+
+        require(sale.isOpen == false, "Factory: Target not reached");
+
+        //transfer tokens to the owner
+        token.transfer(sale.creator,token.balanceOf(address(this)));
+
+        //transfer ETH raised 
+        (bool success, ) = payable(sale.creator).call{value: sale.raised}("");
+        
+        require( success, "Factory: ETH Transfer failed");
+     }
+
+    function withdraw(uint256 _amount) external {
+        require(msg.sender == owner, "Factory: Only the owner can withdraw");
+
+        (bool success, ) = payable(owner).call{value: _amount}("");
+        
+        require( success, "Factory: ETH Transfer failed");
+     }
 }

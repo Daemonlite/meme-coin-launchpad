@@ -144,8 +144,53 @@ describe("Factory", function () {
         const sale = await factory.tokenToSale(await token.getAddress());
         const cost = await factory.getCost(sale.sold);
 
-        expect(cost).to.be.equal(ethers.parseUnits("0.0011",18)); // ✅ correct
+       expect(cost).to.equal(ethers.parseUnits("0.0011", 18));
 
     })
   });
+
+  describe("Depositing", function () {
+  const AMOUNT = ethers.parseUnits("10000", 18);
+
+  it("Sale should be closed and successfully deposits", async function () {
+    const { factory, token, creator, buyer } = await loadFixture(buyTokenFixture);
+
+    // Calculate new cost based on sold tokens (after 10,000 sold)
+    const cost = await factory.getCost(ethers.parseUnits("10000", 18));
+    const secondBuyCost = (cost * AMOUNT) / ethers.parseUnits("1", 18);
+
+    // Buy tokens again to close the sale
+    const buyTx = await factory.connect(buyer).buy(
+      await token.getAddress(),
+      AMOUNT,
+      { value: secondBuyCost }
+    );
+    await buyTx.wait();
+
+    const sale = await factory.tokenToSale(await token.getAddress());
+    expect(sale.isOpen).to.equal(false);
+
+    const depositTx = await factory.connect(creator).deposit(await token.getAddress());
+    await depositTx.wait();
+
+    const remaining = ethers.parseUnits("980000", 18); // 1_000_000 - 2 * 10_000
+
+    const balance = await token.balanceOf(creator.address);
+    expect(balance).to.equal(remaining);
+  });
+});
+
+
+  describe("Withdrawing Fees", function () {
+  it("Should update ETH balances", async function () {
+    const { factory, deployer } = await loadFixture(deployFactoryFixture);
+
+    const transaction = await factory.connect(deployer).withdraw(FEE);
+    await transaction.wait();
+
+    const balance = await ethers.provider.getBalance(factory.getAddress());
+    expect(balance).to.equal(0);
+  });
+});
+
 });
